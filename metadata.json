@@ -1,0 +1,8 @@
+{
+  "name": "AI Teacher Assistant",
+  "description": "An intelligent dashboard for teachers to manage lectures, analyze student engagement in real-time using webcam input, and review post-lecture insights.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

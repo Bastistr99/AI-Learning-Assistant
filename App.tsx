@@ -7,6 +7,7 @@ import Profile from './components/Profile';
 import LiveSession from './components/LiveSession';
 import PostSessionInsights from './components/PostSessionInsights';
 import { Lecture, NavItem, SessionState, Course } from './types';
+import StudentView from './components/StudentView'; // Import the new component
 
 // Mock Data - Courses
 const MOCK_COURSES: Course[] = [
@@ -74,6 +75,11 @@ const App: React.FC = () => {
   const [activeNav, setActiveNav] = useState<NavItem>(NavItem.Classroom);
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
+  const isStudentMode = window.location.pathname === '/student';
+
+  if (isStudentMode) {
+    return <StudentView />;
+  }
   
   // Lifted state: selectedCourse is now managed here to allow Sidebar to reset it
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);

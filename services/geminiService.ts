@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Using flash-latest for fast multimodal analysis (images + text)
-const MODEL_NAME = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-2.5-flash-lite';
 
 export interface ClassroomAnalysis {
   clarityPercent: number; // 0-100 (higher = clearer)

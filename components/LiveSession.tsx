@@ -105,7 +105,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
         setIsAnalyzing(false);
       }
 
-    }, 6000); // Analyze every 6 seconds
+    }, 15000); // Analyze every 15 seconds
 
     return () => clearInterval(analysisInterval);
   }, [currentSlideIndex, isAnalyzing]);
@@ -266,7 +266,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
                    )}
               </div>
 
-              {/* AI Sentiment Widget */}
+              {/* AI Sentiment Widget */
+                console.log(clarityScore)
+              }
               <div className="h-28 bg-gray-800 rounded-2xl border border-gray-700 p-6 flex items-center justify-between">
                    <div>
                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Live Clarity</h3>

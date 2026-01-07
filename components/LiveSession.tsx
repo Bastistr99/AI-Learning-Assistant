@@ -24,7 +24,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
   const [timer, setTimer] = useState(0);
   
   // AI State
-  const [clarityScore, setClarityScore] = useState<number>(90); // 0-100
+  const [clarityScore, setClarityScore] = useState<number>(90); 
   const [aiTips, setAiTips] = useState<string[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -40,12 +40,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
     return () => clearInterval(interval);
   }, []);
 
-  // Camera setup
+  // Camera setup (Hidden for analysis only)
   useEffect(() => {
-    let stream: MediaStream | null = null;
     const startCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
@@ -56,7 +55,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
     startCamera();
 
     return () => {
-      if (stream) {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
       }
     };
@@ -64,7 +64,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
 
   // Real-time AI Analysis Loop
   useEffect(() => {
+    console.log('🔄 [LiveSession] Analysis loop mounted for slide:', currentSlideIndex);
     const analysisInterval = setInterval(async () => {
+      console.log('⏱️ [LiveSession] Analysis tick - video:', !!videoRef.current, 'canvas:', !!canvasRef.current, 'analyzing:', isAnalyzing);
       if (!videoRef.current || !canvasRef.current || isAnalyzing) return;
 
       setIsAnalyzing(true);
@@ -76,21 +78,24 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
             // Ensure canvas matches video dimensions
             canvasRef.current.width = videoRef.current.videoWidth;
             canvasRef.current.height = videoRef.current.videoHeight;
+            console.log('🎥 [LiveSession] Canvas captured:', canvasRef.current.width, 'x', canvasRef.current.height);
             
             ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
             
             const base64Image = canvasRef.current.toDataURL('image/jpeg', 0.8);
             const currentTopic = SLIDES[currentSlideIndex].content;
+            console.log('📹 [LiveSession] Calling analyzeClassroom for topic:', currentTopic);
 
             // 2. Call Gemini Service
             const result = await analyzeClassroom(base64Image, currentTopic);
+            console.log('✅ [LiveSession] Analysis result received:', result);
 
             // 3. Update State based on result
             // Gemini now returns `clarityPercent` (0-100)
             const newClarity = typeof result.clarityPercent === 'number' ? Math.max(0, Math.min(100, result.clarityPercent)) : 0;
 
-            // Smooth transition for the chart
-            setClarityScore((prev) => (prev + newClarity) / 2);
+            // Use Gemini output directly
+            setClarityScore(newClarity);
             setAiTips(result.tips || []);
 
             // Trigger notification if tips arrived
@@ -117,28 +122,22 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
   };
 
   const handleNextSlide = () => {
-    if (currentSlideIndex < SLIDES.length - 1) {
-        setCurrentSlideIndex(p => p + 1);
-        setAiTips([]); // Clear old tips for new slide
-    }
+    if (currentSlideIndex < SLIDES.length - 1) setCurrentSlideIndex(p => p + 1);
   };
 
   const handlePrevSlide = () => {
-    if (currentSlideIndex > 0) {
-        setCurrentSlideIndex(p => p - 1);
-        setAiTips([]);
-    }
+    if (currentSlideIndex > 0) setCurrentSlideIndex(p => p - 1);
   };
 
-  // Ambient UI Logic
+  // Ambient UI Logic - REDESIGNED: Static, Left-Border Only, No Blinking
   const getAmbientBorderClass = () => {
-      if (clarityScore >= 80) return "border-l-4 border-accent"; // Lime Green
-      if (clarityScore >= 60) return "border-l-4 border-yellow-500"; // Warning
-      return "border-l-4 border-orange-500"; // Danger
+      if (clarityScore >= 80) return "border-l-4 border-accent"; // Lime Green (Consistent with App)
+      if (clarityScore >= 60) return "border-l-4 border-yellow-500"; // Warning Yellow
+      return "border-l-4 border-orange-500"; // Static Orange (No Pulse)
   };
 
   const getSentimentIcon = () => {
-      if (clarityScore >= 80) return <Smile size={32} className="text-accent" />; 
+      if (clarityScore >= 80) return <Smile size={32} className="text-accent" />; // Lime Green
       if (clarityScore >= 60) return <Meh size={32} className="text-yellow-500" />;
       return <Frown size={32} className="text-orange-500" />;
   };
@@ -148,9 +147,9 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
 
   return (
     <div className="h-screen w-full bg-primary text-gray-200 flex flex-col font-sans overflow-hidden relative">
-      {/* Hidden Capture Elements */}
-      <video ref={videoRef} autoPlay muted playsInline className="hidden" />
-      <canvas ref={canvasRef} className="hidden" />
+      {/* Hidden Data Source */}
+      <video ref={videoRef} autoPlay muted className="hidden" />
+      <canvas ref={canvasRef} width={640} height={480} className="hidden" />
 
       {/* HEADER */}
       <header className="h-16 px-6 border-b border-gray-800 flex items-center justify-between bg-black/20">
@@ -160,7 +159,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
               </button>
               <div>
                   <h1 className="text-sm font-bold text-white tracking-wide">{lecture.title}</h1>
-                  <p className="text-xs text-gray-500">Speaker View • {isAnalyzing ? 'Analyzing...' : 'Live'}</p>
+                  <p className="text-xs text-gray-500">Speaker View</p>
               </div>
           </div>
 
@@ -184,8 +183,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
           
           {/* LEFT: CURRENT SLIDE (SPEAKER VIEW) - 8 COLS */}
           <div className="col-span-8 flex flex-col h-full">
-               {/* Slide Container */}
-               <div className={`flex-1 bg-white rounded-r-2xl rounded-l-md relative flex items-center justify-center text-primary p-12 transition-all duration-700 ${getAmbientBorderClass()}`}>
+               {/* Slide Container: White background, subtle left border status indicator */}
+               <div className={`flex-1 bg-white rounded-r-2xl rounded-l-md relative flex items-center justify-center text-primary p-12 transition-colors duration-500 ${getAmbientBorderClass()}`}>
                     <div className="text-center">
                         <h2 className="text-4xl font-bold mb-6 text-primary">{currentSlide.title}</h2>
                         <p className="text-xl text-secondaryText">{currentSlide.content}</p>
@@ -194,7 +193,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
                         </div>
                     </div>
 
-                    {/* Navigation */}
+                    {/* Slide Navigation Controls */}
                     <div className="absolute bottom-6 right-6 flex gap-2">
                         <button onClick={handlePrevSlide} disabled={currentSlideIndex === 0} className="p-3 bg-gray-100 rounded-full hover:bg-gray-200 disabled:opacity-50 text-primary transition-colors">
                             <ChevronLeft size={24}/>
@@ -205,11 +204,11 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
                     </div>
                </div>
                
-               {/* Footer Info */}
+               {/* Current Slide Footer Info */}
                <div className="mt-4 flex justify-between text-gray-500 text-sm font-medium">
                    <span>Slide {currentSlideIndex + 1} of {SLIDES.length}</span>
                    {clarityScore < 60 && (
-                       <span className="text-orange-400 flex items-center gap-2 animate-pulse">
+                       <span className="text-orange-400 flex items-center gap-2">
                            <AlertTriangle size={14}/> 
                            Clarity dropping
                        </span>
@@ -237,41 +236,28 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
                   )}
               </div>
 
-              {/* Speaker Notes / AI TIPS */}
+              {/* Speaker Notes */}
               <div className="flex-1 bg-gray-800 rounded-2xl border border-gray-700 p-6 overflow-y-auto">
                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Speaker Notes</h3>
-                   <p className="text-lg leading-relaxed text-gray-300 font-medium mb-6">
+                   <p className="text-lg leading-relaxed text-gray-300 font-medium">
                        {currentSlide.notes}
                    </p>
-
-                   {/* DYNAMIC AI TIPS */}
-                   {aiTips.length > 0 ? (
-                       <div className="mt-6 p-4 bg-orange-900/30 border-l-2 border-orange-500 rounded-r-lg animate-fade-in">
-                           <h4 className="text-orange-400 font-bold text-sm mb-3 flex items-center gap-2">
-                               <Lightbulb size={16}/> 
-                               AI Suggestions
+                   {/* Contextual Smart Cue - Static */}
+                   {clarityScore < 60 && (
+                       <div className="mt-6 p-4 bg-orange-900/20 border-l-2 border-orange-500/50 rounded-r-lg">
+                           <h4 className="text-orange-400 font-bold text-sm mb-1 flex items-center gap-2">
+                               <AlertTriangle size={14}/> 
+                               Suggestion
                            </h4>
-                           <ul className="space-y-2">
-                               {aiTips.map((tip, idx) => (
-                                   <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                                       <span className="text-orange-500 mt-1">•</span> {tip}
-                                   </li>
-                               ))}
-                           </ul>
-                       </div>
-                   ) : (
-                       <div className="mt-6 p-4 bg-green-900/20 border-l-2 border-accent/50 rounded-r-lg">
-                           <p className="text-xs text-accent">Classroom engagement looks good. Keep going!</p>
+                           <p className="text-sm text-gray-400">Students seem confused. Try explaining the "Vanishing Gradient" again with a diagram.</p>
                        </div>
                    )}
               </div>
 
-              {/* AI Sentiment Widget */
-                console.log(clarityScore)
-              }
+              {/* AI Sentiment Widget (Ambient) */}
               <div className="h-28 bg-gray-800 rounded-2xl border border-gray-700 p-6 flex items-center justify-between">
                    <div>
-                       <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Live Clarity</h3>
+                       <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Clarity</h3>
                        <div className="flex items-baseline gap-1">
                            <span className={`text-3xl font-bold ${clarityScore < 60 ? 'text-orange-400' : 'text-white'}`}>
                                {Math.round(clarityScore)}
@@ -285,7 +271,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
                        <div className="flex flex-col items-center gap-1">
                            {getSentimentIcon()}
                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-                               {clarityScore >= 80 ? 'Good' : clarityScore >= 60 ? 'Mixed' : 'Low'}
+                               {clarityScore >= 80 ? 'Good' : clarityScore >= 60 ? 'Okay' : 'Low'}
                            </span>
                        </div>
                    </div>
@@ -293,10 +279,10 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, onEndSession, onBack
           </div>
       </div>
 
-      {/* TOAST NOTIFICATION */}
+      {/* TOAST NOTIFICATION (Subtle, No Pulse) */}
       {toastMessage && (
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-xl shadow-xl border border-gray-700 flex items-center gap-3 animate-fade-in-up z-50">
-              <div className="w-2 h-2 rounded-full bg-accent"></div>
+              <div className="w-2 h-2 rounded-full bg-orange-500"></div>
               <span className="text-sm font-medium">{toastMessage}</span>
           </div>
       )}

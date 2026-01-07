@@ -12,9 +12,11 @@ export interface ClassroomAnalysis {
 }
 
 export const analyzeClassroom = async (base64Image: string, currentTopic: string): Promise<ClassroomAnalysis> => {
+  console.log('🚀 [analyzeClassroom] Called with topic:', currentTopic);
   try {
     // 1. Prepare Image Data (Remove header)
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+    console.log('📸 [analyzeClassroom] Base64 image prepared, length:', cleanBase64.length);
 
     // 2. Construct the Prompt (Combined for efficiency)
     const prompt = `
@@ -59,10 +61,11 @@ export const analyzeClassroom = async (base64Image: string, currentTopic: string
     });
 
     const text = response.text;
+    console.log('✨ [analyzeClassroom] Gemini response received, text length:', text?.length);
     if (!text) throw new Error("Empty response from Gemini");
 
     const result = JSON.parse(text);
-    console.log('📊 Gemini Response:', result);
+    console.log('📊 [analyzeClassroom] Parsed Gemini Response:', result);
     const confusion = typeof result.confusion_score === 'number' ? result.confusion_score : 0;
     const engagement = typeof result.engagement_score === 'number' ? result.engagement_score : 0;
 
@@ -81,7 +84,8 @@ export const analyzeClassroom = async (base64Image: string, currentTopic: string
     };
 
   } catch (error) {
-    console.error("Gemini Analysis Failed:", error);
+    console.error("❌ [analyzeClassroom] Gemini Analysis Failed:", error);
+    console.warn('⚠️ [analyzeClassroom] Using fallback values');
     // Fallback for demo if API key is invalid or camera is blocked
     const fallbackConfusion = 2; // 0-10 (lower = clearer)
     const fallbackClarity = Math.round((1 - Math.min(Math.max(fallbackConfusion, 0), 10) / 10) * 100);

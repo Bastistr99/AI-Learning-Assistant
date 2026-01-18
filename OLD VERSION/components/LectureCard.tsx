@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, Plus, Clock, Sparkles } from 'lucide-react';
+import { Folder, Plus, Clock, BarChart } from 'lucide-react';
 import { Lecture } from '../types';
 
 interface LectureCardProps {
@@ -23,11 +23,6 @@ const LectureCard: React.FC<LectureCardProps> = ({ lecture, onClick }) => {
       </button>
     );
   }
-
-  // Calculate Average Clarity from recent stats
-  const avgClarity = lecture.recentSessionStats && lecture.recentSessionStats.length > 0
-      ? Math.round(lecture.recentSessionStats.reduce((acc, curr) => acc + curr.clarityScore, 0) / lecture.recentSessionStats.length)
-      : 0;
 
   // Render Existing Lecture Card
   return (
@@ -57,10 +52,11 @@ const LectureCard: React.FC<LectureCardProps> = ({ lecture, onClick }) => {
         </div>
         
         <div className="flex items-end flex-col gap-1">
-           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Avg. Clarity</span>
-           <div className="flex items-center gap-2 text-primary">
-            <Sparkles size={14} className="text-accent" fill="currentColor" />
-            <span className="text-xs font-bold">{avgClarity > 0 ? `${avgClarity}%` : 'N/A'}</span>
+           {/* Placeholder for alignment, label hidden visually or shared */}
+           <span className="text-[10px] font-bold text-transparent select-none">.</span>
+           <div className="flex items-center gap-2 text-green-600">
+            <BarChart size={14} className="rotate-90" />
+            <span className="text-xs font-medium">{lecture.lastSessionAttendance}% att.</span>
           </div>
         </div>
       </div>

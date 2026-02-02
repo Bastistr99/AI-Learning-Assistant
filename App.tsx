@@ -255,7 +255,8 @@ const App: React.FC = () => {
       colorBlindMode: false,
       reducedMotion: false,
       highContrast: false
-    }
+    },
+    demoMode: false
   });
   
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -309,6 +310,47 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteCourse = async (courseId: string) => {
+      // 1. Get all lectures for this course
+      const courseLectures = await db.lectures.where('courseId').equals(courseId).toArray();
+      const lectureIds = courseLectures.map(l => l.id);
+
+      // 2. Delete all calendar events linked to these lectures
+      if (lectureIds.length > 0) {
+          await db.calendarEvents.where('lectureId').anyOf(lectureIds).delete();
+      }
+
+      // 3. Delete the lectures
+      if (lectureIds.length > 0) {
+           await db.lectures.bulkDelete(lectureIds);
+      }
+      
+      // 4. Delete the course
+      await db.courses.delete(courseId);
+
+      // UI Cleanup if needed
+      if (selectedCourse?.id === courseId) {
+          setSelectedCourse(null);
+      }
+  };
+
+  const handleDeleteLecture = async (lectureId: string) => {
+      const lecture = await db.lectures.get(lectureId);
+      if (!lecture) return;
+
+      // 1. Delete events
+      await db.calendarEvents.where('lectureId').equals(lectureId).delete();
+
+      // 2. Delete lecture
+      await db.lectures.delete(lectureId);
+
+      // 3. Update Course Count
+      const course = await db.courses.get(lecture.courseId);
+      if (course && course.lectureCount > 0) {
+          await db.courses.update(lecture.courseId, { lectureCount: course.lectureCount - 1 });
+      }
+  };
+
   const handleAddCalendarEvent = async (event: CalendarEvent) => {
       await db.calendarEvents.add(event);
   };
@@ -333,7 +375,8 @@ const App: React.FC = () => {
         // Save the new stats to the lecture
         const updatedLecture: Lecture = { 
             ...selectedLecture, 
-            recentSessionStats: stats 
+            recentSessionStats: stats,
+            lastPlayedAt: Date.now()
         };
         
         // Update local selected state
@@ -341,6 +384,9 @@ const App: React.FC = () => {
         
         // Update DB
         await db.lectures.put(updatedLecture);
+        
+        // Update local lectures list to reflect changes immediately
+        setLectures(prev => prev.map(l => l.id === updatedLecture.id ? updatedLecture : l));
     }
     setSessionState('summary');
   };
@@ -379,6 +425,7 @@ const App: React.FC = () => {
         <LiveSession 
           lecture={selectedLecture} 
           globalAiEnabled={appSettings.aiEnabled}
+          demoMode={appSettings.demoMode}
           accessibility={appSettings.accessibility}
           onEndSession={handleEndSession}
           onBack={handleBackToApp} // Allows aborting
@@ -419,6 +466,8 @@ const App: React.FC = () => {
             onViewInsights={handleViewInsights}
             onAddCourse={handleAddCourse}
             onImportLecture={handleImportLecture}
+            onDeleteCourse={handleDeleteCourse}
+            onDeleteLecture={handleDeleteLecture}
           />
         );
       

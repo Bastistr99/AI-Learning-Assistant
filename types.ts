@@ -41,6 +41,7 @@ export interface Lecture {
   dateCreated: string;
   slides: Slide[];
   recentSessionStats?: SessionSlideStat[];
+  lastPlayedAt?: number; // Timestamp of when the last session ended
   pdfUrl?: string; // URL to the blob of the actual PDF file
   pdfBlob?: Blob; // Persisted PDF file
 }
@@ -84,6 +85,7 @@ export interface AppSettings {
   aiEnabled: boolean;
   emailNotifications: boolean;
   accessibility: AccessibilitySettings;
+  demoMode: boolean; // Forces simulation even with API key
 }
 
 export type SessionState = 'idle' | 'live' | 'summary';

@@ -1,11 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Lecture, Course, Slide } from '../types';
-import { Search, Filter, MoreHorizontal, Folder, ArrowLeft, FileText, Calendar, ChevronRight, X, Play, BarChart2, Plus, Upload, Loader2, Wand2 } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Folder, ArrowLeft, FileText, Calendar, ChevronRight, X, Play, BarChart2, Plus, Upload, Loader2, Wand2, Trash2 } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import JSZip from 'jszip';
-// We no longer strictly need generateLectureFromText for file imports, 
-// but keeping it imported if you want to add "Paste Text" feature later.
-// import { generateLectureFromText } from '../services/geminiService';
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs`;
@@ -19,6 +16,8 @@ interface LecturesListProps {
   onViewInsights: (lecture: Lecture) => void;
   onAddCourse: (title: string) => void;
   onImportLecture: (courseId: string, lectureData: any) => void;
+  onDeleteCourse: (courseId: string) => void;
+  onDeleteLecture: (lectureId: string) => void;
 }
 
 const LecturesList: React.FC<LecturesListProps> = ({ 
@@ -29,7 +28,9 @@ const LecturesList: React.FC<LecturesListProps> = ({
     onStartSession, 
     onViewInsights, 
     onAddCourse,
-    onImportLecture
+    onImportLecture,
+    onDeleteCourse,
+    onDeleteLecture
 }) => {
   const [modalLecture, setModalLecture] = useState<Lecture | null>(null);
   const [showNewCourseModal, setShowNewCourseModal] = useState(false);
@@ -40,6 +41,8 @@ const LecturesList: React.FC<LecturesListProps> = ({
   const [processingStatus, setProcessingStatus] = useState('');
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'course' | 'lecture', id: string, name: string } | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,6 +62,17 @@ const LecturesList: React.FC<LecturesListProps> = ({
   const closeModal = () => {
     setModalLecture(null);
   }
+
+  const handleDeleteConfirm = () => {
+      if (!deleteConfirm) return;
+      
+      if (deleteConfirm.type === 'course') {
+          onDeleteCourse(deleteConfirm.id);
+      } else {
+          onDeleteLecture(deleteConfirm.id);
+      }
+      setDeleteConfirm(null);
+  };
 
   const handleCreateCourse = (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +228,37 @@ const LecturesList: React.FC<LecturesListProps> = ({
 
   return (
     <div className="p-4 md:p-10 w-full max-w-7xl mx-auto animate-fade-in relative">
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+                    <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-primary mb-2">Delete {deleteConfirm.type === 'course' ? 'Course' : 'Lecture'}?</h3>
+                <p className="text-secondaryText mb-6 text-sm">
+                    Are you sure you want to delete <span className="font-bold text-primary">"{deleteConfirm.name}"</span>? 
+                    {deleteConfirm.type === 'course' && " This will remove all lectures inside it."}
+                    <br/>This action cannot be undone.
+                </p>
+                <div className="flex gap-3 w-full">
+                    <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-secondaryText hover:bg-gray-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleDeleteConfirm}
+                        className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-200"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* Processing Overlay */}
       {isProcessing && (
         <div className="fixed inset-0 z-[70] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center">
@@ -378,8 +423,15 @@ const LecturesList: React.FC<LecturesListProps> = ({
                     <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center text-primary group-hover:bg-accent group-hover:text-primary transition-colors duration-300">
                         <Folder size={28} fill="currentColor" className="opacity-80" />
                     </div>
-                    <button className="p-2 hover:bg-gray-100 rounded-full text-gray-400">
-                        <MoreHorizontal size={20} />
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirm({ type: 'course', id: course.id, name: course.title });
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-colors"
+                        title="Delete Course"
+                    >
+                        <Trash2 size={20} />
                     </button>
                 </div>
 
@@ -461,9 +513,21 @@ const LecturesList: React.FC<LecturesListProps> = ({
                                 </div>
                             </td>
                             <td className="p-5 text-right">
-                                <button className="p-2 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-primary transition-colors">
-                                    <ChevronRight size={20} />
-                                </button>
+                                <div className="flex justify-end gap-2">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteConfirm({ type: 'lecture', id: lecture.id, name: lecture.title });
+                                        }}
+                                        className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                                        title="Delete Lecture"
+                                    >
+                                        <Trash2 size={20} />
+                                    </button>
+                                    <button className="p-2 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-primary transition-colors">
+                                        <ChevronRight size={20} />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     )})}

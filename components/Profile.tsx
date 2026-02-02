@@ -27,6 +27,12 @@ const Profile: React.FC<ProfileProps> = ({ user, settings, onUpdateUser, onUpdat
     triggerToast(newVal ? 'AI features enabled' : 'AI features disabled');
   };
 
+  const toggleDemo = () => {
+    const newVal = !settings.demoMode;
+    onUpdateSettings({ ...settings, demoMode: newVal });
+    triggerToast(newVal ? 'Presentation Mode Enabled (Simulated Data)' : 'Presentation Mode Disabled');
+  };
+
   const toggleEmail = () => {
     const newVal = !settings.emailNotifications;
     onUpdateSettings({ ...settings, emailNotifications: newVal });
@@ -184,6 +190,21 @@ const Profile: React.FC<ProfileProps> = ({ user, settings, onUpdateUser, onUpdat
                         aria-label={`Toggle AI ${settings.aiEnabled ? 'Off' : 'On'}`}
                       >
                           <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 transform ${settings.aiEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                      </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                      <div>
+                          <label className="text-sm font-bold text-primary block">Presentation Mode</label>
+                          <span className="text-xs text-secondaryText">Force simulation for demos (No API usage)</span>
+                      </div>
+                      
+                      <button 
+                        onClick={toggleDemo}
+                        className={`w-14 h-8 rounded-full p-1 transition-all duration-300 focus:ring-2 focus:ring-offset-2 focus:ring-accent ${settings.demoMode ? 'bg-accent' : 'bg-gray-200'}`}
+                        aria-label={`Toggle Demo Mode ${settings.demoMode ? 'Off' : 'On'}`}
+                      >
+                          <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 transform ${settings.demoMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
                       </button>
                   </div>
               </div>

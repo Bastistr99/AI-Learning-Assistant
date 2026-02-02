@@ -12,7 +12,11 @@ interface ClassroomProps {
 
 const Classroom: React.FC<ClassroomProps> = ({ lectures, events, onSelectLecture, onNewLecture }) => {
   // Filter for "Today's" or active lectures for the Classroom view (just limits the list size)
-  const recentLectures = lectures.slice(0, 3); 
+  const recentLectures = useMemo(() => {
+     return [...lectures]
+        .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0))
+        .slice(0, 3);
+  }, [lectures]); 
 
   // Logic to find the absolute next event in the future
   const nextEventData = useMemo(() => {

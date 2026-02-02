@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, StopCircle, ChevronRight, ChevronLeft, Clock, AlertTriangle, Sparkles, Power, Maximize2, Minimize2, Loader2, ThumbsUp, ThumbsDown, Check, X } from 'lucide-react';
 import { Lecture, SessionSlideStat, AccessibilitySettings, AiIntervention } from '../types';
-import { analyzeClassroom } from '../services/geminiService';
+import { analyzeClassroom, getAiInterval, analyzeSlideNeutral } from '../services/geminiService';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
 // Resolve PDF.js library
@@ -10,12 +10,13 @@ GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.
 interface LiveSessionProps {
   lecture: Lecture;
   globalAiEnabled: boolean;
+  demoMode: boolean; // Add this
   accessibility: AccessibilitySettings;
   onEndSession: (stats: SessionSlideStat[]) => void;
   onBack: () => void;
 }
 
-const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, accessibility, onEndSession, onBack }) => {
+const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, demoMode, accessibility, onEndSession, onBack }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcamCanvasRef = useRef<HTMLCanvasElement>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +62,52 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, acc
   const slides = lecture.slides && lecture.slides.length > 0 ? lecture.slides : [
       { id: 0, title: lecture.title, content: lecture.description, notes: "No slides content available." }
   ];
+
+  // Neutral Feedback State
+  const [slideDuration, setSlideDuration] = useState(0);
+  const [neutralFeedback, setNeutralFeedback] = useState<string[]>([]);
+  const [hasAnalyzedNeutral, setHasAnalyzedNeutral] = useState(false);
+
+  // Reset slide-specific analysis on slide change
+  useEffect(() => {
+      setSlideDuration(0);
+      setNeutralFeedback([]);
+      setHasAnalyzedNeutral(false);
+  }, [currentSlideIndex]);
+
+  // Track time spent on current slide
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setSlideDuration(d => d + 1);
+      }, 1000);
+      return () => clearInterval(interval);
+  }, []);
+
+  // Trigger Neutral Analysis after 2 minutes (120 seconds)
+  useEffect(() => {
+      const checkNeutralAnalysis = async () => {
+          if (slideDuration >= 120 && !hasAnalyzedNeutral && isAiEnabled) {
+             setHasAnalyzedNeutral(true); // Prevent multiple calls
+             
+             // Capture slide image
+             let slideBase64 = undefined;
+             if (lecture.pdfUrl && pdfCanvasRef.current) {
+                slideBase64 = pdfCanvasRef.current.toDataURL('image/jpeg', 0.6); 
+             }
+             
+             if (slideBase64) {
+                 const currentTopic = slides[currentSlideIndex]?.content || slides[currentSlideIndex]?.title || "General Lecture";
+                 try {
+                    const result = await analyzeSlideNeutral(slideBase64, currentTopic, demoMode);
+                    setNeutralFeedback(result.feedback);
+                 } catch (e) {
+                     console.error("Neutral analysis failed", e);
+                 }
+             }
+          }
+      };
+      checkNeutralAnalysis();
+  }, [slideDuration, hasAnalyzedNeutral, isAiEnabled, lecture.pdfUrl, currentSlideIndex, slides]);
 
   // Load PDF on Mount
   useEffect(() => {
@@ -297,8 +344,8 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, acc
         // 3. Get Context Text
         const currentTopic = slides[currentSlideIndex]?.content || slides[currentSlideIndex]?.title || "General Lecture";
 
-        // Call Gemini (simulate = false for REAL analysis)
-        const result = await analyzeClassroom(webcamBase64, currentTopic, false, slideBase64);
+        // Call Gemini (simulate = false for REAL analysis, unless demoMode is on)
+        const result = await analyzeClassroom(webcamBase64, currentTopic, demoMode, slideBase64);
 
         // Map Confusion (0-10) to Clarity % (100-0)
         const newClarity = Math.max(0, Math.min(100, (10 - result.confusionScore) * 10));
@@ -342,7 +389,7 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, acc
         setIsAnalyzing(false);
       }
 
-    }, 60000); 
+    }, getAiInterval()); 
 
     return () => clearInterval(analysisInterval);
   }, [currentSlideIndex, isAnalyzing, isAiEnabled, slides, lecture.pdfUrl]);
@@ -488,18 +535,15 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, acc
 
           <div className="flex items-center gap-6">
               {/* AI Toggle */}
-              <div 
-                className={`flex items-center gap-3 px-4 py-2 rounded-full border transition-all duration-300 cursor-pointer ${isAiEnabled ? 'bg-primary text-white border-primary' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
-                onClick={() => {
-                    setIsAiEnabled(!isAiEnabled);
-                }}
-              >
-                 <div className={`p-1 rounded-full ${isAiEnabled ? 'bg-accent text-primary' : 'bg-gray-300 text-white'}`}>
-                    <Power size={14} strokeWidth={3} />
-                 </div>
-                 <span className={`text-sm font-bold`}>
-                    AI Assistant {isAiEnabled ? 'On' : 'Off'}
-                 </span>
+              <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-500">AI Assistant</span>
+                  <button 
+                    onClick={() => setIsAiEnabled(!isAiEnabled)}
+                    className={`w-14 h-8 rounded-full p-1 transition-all duration-300 cursor-pointer focus:ring-2 focus:ring-offset-2 focus:ring-primary ${isAiEnabled ? 'bg-primary' : 'bg-gray-200'}`}
+                    aria-label={`Toggle AI ${isAiEnabled ? 'Off' : 'On'}`}
+                  >
+                      <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 transform ${isAiEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                  </button>
               </div>
 
               <div className="h-8 w-[1px] bg-gray-200 mx-2"></div>
@@ -646,6 +690,23 @@ const LiveSession: React.FC<LiveSessionProps> = ({ lecture, globalAiEnabled, acc
                              </button>
                         </div>
                     </div>
+                </div>
+              )}
+
+              {/* SLIDE INSIGHTS (NEUTRAL FEEDBACK) */}
+              {isAiEnabled && neutralFeedback.length > 0 && (
+                <div className="bg-blue-50 rounded-3xl p-6 border border-blue-100 shadow-sm animate-fade-in-up shrink-0 flex flex-col transition-all duration-300">
+                     <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        Slide Analysis
+                     </h3>
+                     <ul className="space-y-2">
+                        {neutralFeedback.map((fb, idx) => (
+                            <li key={idx} className="text-xs text-blue-900 leading-relaxed pl-2 border-l-2 border-blue-200">
+                                {fb}
+                            </li>
+                        ))}
+                     </ul>
                 </div>
               )}
 
